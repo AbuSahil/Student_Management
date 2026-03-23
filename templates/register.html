@@ -1,0 +1,58 @@
+{%  extends 'base.html'%}
+
+{% block body %}
+
+
+<body>
+
+    <h2>Register</h2>
+
+    
+    
+    
+
+    <body>
+        <div class="container">
+            <h1>Add Student</h1>
+            <form method="POST">
+                <div class="row">
+                    <div class="col">
+                        <label>Name:
+                            <input type="text" name="name" required>
+                    </div>
+                    </label>
+                    <div class="col">
+                        <label>Email:
+                            <input type="email" name="email" required>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <label>password:
+                            <input type="password" name="password" required>
+
+                        </label>
+                    </div>
+                    <div class="col">
+                        <label>Role:
+                            <select name="role">
+                                
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                            </select> </label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mx-auto my-3">
+                        <button type="submit" class="btn btn-outline-danger" aria-label="Submit">submit</button>
+                    </div>
+                </div>
+            </form>
+
+
+            <a href="/login">Already have account? Login</a>
+
+</body>
+   {% endblock body %} 

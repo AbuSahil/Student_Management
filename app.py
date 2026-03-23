@@ -1,96 +1,107 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from datetime import date, datetime   
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = "secret123"
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///student.db"
+app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///users.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Student model
-class Student(db.Model):
-    # __tablename__ = 'student'   # ✅ explicit table name
-    sno = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)
-    last = db.Column(db.String(200), nullable=False)
-    father = db.Column(db.String(500), nullable=False)
-    mother = db.Column(db.String(200), nullable=False)
-    dob = db.Column(db.Date, nullable=False)
-    phone = db.Column(db.Integer, nullable=False)
-    pin = db.Column(db.Integer, nullable=False)
-    std = db.Column(db.String(10), nullable=False)
-    roll = db.Column(db.Integer, nullable=False)
-    date_created = db.Column(db.Date, default=date.today)   # ✅ correct default
+# ------------------ DATABASE MODEL ------------------
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(100), unique=True)
+    password = db.Column(db.String(200))
+    role = db.Column(db.String(20),default="user")  # student or teacher
 
-    def __repr__(self) -> str:
-        return f"{self.sno} - {self.name}"
 
-# Route for adding and listing students
-@app.route('/', methods=['POST', 'GET'])
-def add_student():
+# ------------------ HOME ------------------
+@app.route('/' ,methods=['POST', 'GET'])
+def home():
+    return redirect('/login')
+
+
+# ------------------ REGISTER ------------------
+@app.route('/register', methods=['GET', 'POST'])
+def register():
     if request.method == 'POST':
-        # Convert DOB string to date object
-        dob = datetime.strptime(request.form['dob'], "%Y-%m-%d").date()
-
-        new_student = Student(
-            name=request.form['name'],
-            last=request.form['last'],
-            father=request.form['father'],
-            mother=request.form['mother'],
-            dob=dob,
-            phone=request.form['phone'],
-            pin=request.form['pin'],
-            std=request.form['std'],
-            roll=request.form['roll']
-        )
-        db.session.add(new_student)
-        db.session.commit()
-        return redirect("/")
-
-    class_students = Student.query.all()
-    return render_template("add.html", class_student=class_students)
-
-@app.route('/update/<int:sno>', methods=['GET','POST'])
-def update(sno):
-    if request.method == "POST":
-        # parse and update fields
         name = request.form['name']
-        last = request.form['last']
-        father = request.form['father']
-        mother = request.form['mother']
-        dob = datetime.strptime(request.form['dob'], "%Y-%m-%d").date()
-        phone = request.form['phone']
-        pin = request.form['pin']
-        std = request.form['std']
-        roll = request.form['roll']
-        class_student= Student.query.filter_by(sno=sno).first()
-        class_student.name=name
-        class_student.last=last
-        class_student.father=father
-        class_student.mother=mother
-        class_student.dob=dob
-        class_student.phone=phone
-        class_student.pin=pin
-        class_student.std=std
-        class_student.roll=roll
-        db.session.add(class_student)
+        email = request.form['email']
+        password = generate_password_hash(request.form['password'])
+        role = request.form['role']
+
+        existing_user = User.query.filter_by(email=email).first()
+
+        if existing_user:
+            flash("User already exists!", "danger")
+            return redirect('/register')
+
+        new_user = User(name=name, email=email, password=password, role=role)
+        db.session.add(new_user)
         db.session.commit()
-        return redirect("/")
-       
-    student = Student.query.filter_by(sno=sno).first()
-    return render_template("update.html", student=student)
 
-@app.route('/delete/<int:sno>')
-def delete(sno):
-    class_student = Student.query.filter_by(sno=sno).first()
-    db.session.delete(class_student)
-    db.session.commit()
-    return redirect('/')
+        flash("Registration successful! Please login.", "success")
+        return redirect('/login')
 
-if __name__ == "__main__":
+    return render_template('register.html')
+
+
+# ------------------ LOGIN ------------------
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        user = User.query.filter_by(email=email).first()
+
+        if user and check_password_hash(user.password, password):
+            session['user_id'] = user.id
+            session['role'] = user.role
+            session['name'] = user.name
+
+            flash("Login successful!", "success")
+            return redirect('/dashboard')
+        else:
+            flash("Invalid email or password!", "danger")
+            return redirect('/login')
+
+    return render_template('login.html')
+
+
+# ------------------ DASHBOARD ------------------
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' in session:
+        return render_template('dashboard.html',
+                               name=session['name'],
+                               role=session['role'])
+    flash("Please login first!", "warning")
+    return redirect('/login')
+
+
+# ------------------ LOGOUT ------------------
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash("Logged out successfully!", "info")
+    return redirect('/login')
+
+
+# ------------------ RUN ------------------
+if __name__ == '__main__':
     with app.app_context():
-        db.create_all()   # creates todo.db and tables if not exist
-    app.run(port=5000, debug=True)
+        db.create_all()
+        if not User.query.filter_by(email="admin@gmail.com").first():
+            admin=User(name="Admin",
+                       email="admin@gmail.com",
+                       password=generate_password_hash("123"),
+                       role="admin")
+            db.session.add(admin)
+            db.session.commit()
+            print("Super User Created")
+    app.run(debug=True)
